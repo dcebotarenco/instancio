@@ -15,8 +15,10 @@
  */
 package org.instancio.test.features.generator.misc;
 
+import lombok.Data;
 import org.instancio.Instancio;
 import org.instancio.junit.InstancioExtension;
+import org.instancio.junit.Seed;
 import org.instancio.junit.WithSettings;
 import org.instancio.settings.Keys;
 import org.instancio.settings.Settings;
@@ -35,6 +37,7 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.instancio.Select.all;
+import static org.instancio.Select.field;
 import static org.instancio.Select.root;
 
 @FeatureTag({Feature.GENERATOR, Feature.EMIT_GENERATOR})
@@ -181,5 +184,43 @@ class EmitGeneratorTest {
         assertThat(result)
                 .hasSameSizeAs(values)
                 .isNotEqualTo(values);
+    }
+
+    /**
+     * This test randomly fails,
+     * It seems like that at the depth 2 there are actually 4 nodes but the Queue
+     */
+    @Test
+    @Seed(3095387440446971337L) // test fails
+//    @Seed(3486230662535349159L) //test passes
+    void emit2ValuesForEachParentNode() {
+        RootNode rootNode = Instancio.of(RootNode.class)
+                .generate(field(RootNode::getDepth1Nodes), gen -> gen.collection().size(2))
+                .generate(field(RootNode.Depth1Node::getIsDeleted), gen -> gen.emit().items(true, false))
+                .generate(field(RootNode.Depth1Node::getDepth2Nodes), gen -> gen.collection().size(2))
+                .generate(field(RootNode.Depth1Node.Depth2Node::getIsDeleted), gen -> gen.emit().items(true, false))
+                .verbose()
+                .create();
+        assertThat(rootNode.depth1Nodes).extracting(RootNode.Depth1Node::getIsDeleted).containsExactly(true, false);
+        assertThat(rootNode.depth1Nodes.stream().flatMap(d -> d.getDepth2Nodes().stream()))
+                .extracting(RootNode.Depth1Node.Depth2Node::getIsDeleted).containsExactly(true, false, true, false);
+
+    }
+
+    @Data
+    static class RootNode {
+
+        List<Depth1Node> depth1Nodes;
+
+        @Data
+        static class Depth1Node {
+            List<Depth2Node> depth2Nodes;
+            Boolean isDeleted;
+
+            @Data
+            static class Depth2Node {
+                Boolean isDeleted;
+            }
+        }
     }
 }
